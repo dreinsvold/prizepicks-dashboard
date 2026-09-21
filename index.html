@@ -482,9 +482,8 @@ function sortedLeaderboard(){
 function typeRecordText(s,type){
   const t=s.byType.find(x=>x.type===type);
   if(!t || !t.total) return "—";
-  const pushText=t.push ? ` · ${t.push}P` : "";
   const rateText=t.decisions ? ` (${fmtPct(t.rate)})` : "";
-  return `${t.w}-${t.l}${pushText}${rateText}`;
+  return `${t.w}-${t.l}-${t.push}${rateText}`;
 }
 
 function renderOverview(){
@@ -515,11 +514,11 @@ function renderOverview(){
         <div class="section-title"><h2>Season Leaderboard</h2><span>Hit % → Wins → Avg Performance</span></div>
         <div class="table-wrap">
         <table>
-          <thead><tr><th>Rank</th><th>Picker</th><th>W-L</th><th>Hit %</th><th>Goblin</th><th>Standard</th><th>Demon</th><th>Avg Base</th><th>Avg Performance</th></tr></thead>
+          <thead><tr><th>Rank</th><th>Picker</th><th>W-L-P</th><th>Hit %</th><th>Goblin</th><th>Standard</th><th>Demon</th><th>Avg Base</th><th>Avg Performance</th></tr></thead>
           <tbody>${leaderboard.map((s,i)=>`
             <tr>
               <td class="rank">${i+1}</td><td class="picker">${s.name}</td>
-              <td>${s.wins}-${s.losses}</td><td>${fmtPct(s.hit)}</td>
+              <td>${s.wins}-${s.losses}-${s.pushes}</td><td>${fmtPct(s.hit)}</td>
               <td>${typeRecordText(s,"Goblin")}</td><td>${typeRecordText(s,"Standard")}</td><td>${typeRecordText(s,"Demon")}</td>
               <td>${s.avgBase.toFixed(2)}</td><td><strong>${s.avgAdj.toFixed(2)}</strong></td>
             </tr>`).join("")}
@@ -662,13 +661,12 @@ function pickTypePerformanceHTML(s){
   return s.byType.map(t=>{
     const rate=t.rate==null?0:t.rate;
     const badge=t.type==="Goblin"?pickBadge("Goblin"):t.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>';
-    const decisionText=t.decisions ? `${t.w}-${t.l} decisions` : "0 decisions";
-    const pushText=t.push ? ` · ${t.push} Push${t.push===1?"":"es"}` : "";
+    const recordText=`${t.w}-${t.l}-${t.push}`;
     return `<div class="chart-row type-performance-row">
       <div class="chart-label">${badge}</div>
       <div>
         <div class="chart-track"><div class="chart-fill" style="width:${rate}%"></div></div>
-        <div class="type-meta">${decisionText}${pushText} · ${t.total} pick${t.total===1?"":"s"}</div>
+        <div class="type-meta">${recordText} W-L-P · ${t.total} pick${t.total===1?"":"s"}</div>
       </div>
       <div class="bar-val">${t.decisions?fmtPct(rate):"—"}<div class="small">${t.decisions?`(${t.w}/${t.decisions})`:"No decisions"}</div></div>
     </div>`;
@@ -701,9 +699,9 @@ function renderPickers(active=participants[0]){
       <div class="card-header">
         <div>
           <div class="card-title">${active}</div>
-          <div class="profile-headline">${s.wins}-${s.losses}${s.pushes?` · ${s.pushes} Push${s.pushes===1?"":"es"}`:""} · ${fmtPct(s.hit)} Hit Rate · ${streakText(s)} Streak · ${s.avgAdj.toFixed(2)} Avg Performance</div>
+          <div class="profile-headline">${s.wins}-${s.losses}-${s.pushes} · ${fmtPct(s.hit)} Hit Rate · ${streakText(s)} Streak · ${s.avgAdj.toFixed(2)} Avg Performance</div>
         </div>
-        <div class="record">${s.wins}-${s.losses}</div>
+        <div class="record">${s.wins}-${s.losses}-${s.pushes}</div>
       </div>
 
       <div class="profile-hero">
@@ -783,7 +781,7 @@ function renderAnalytics(){
             <div class="chart-label">${x.type==="Goblin"?pickBadge("Goblin"):x.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>'}</div>
             <div>
               <div class="chart-track"><div class="chart-fill" style="width:${x.rate==null?0:x.rate}%"></div></div>
-              <div class="type-meta">${x.w}-${x.l} decisions${x.push?` · ${x.push} Push${x.push===1?"":"es"}`:""} · ${x.total} picks</div>
+              <div class="type-meta">${x.w}-${x.l}-${x.push} W-L-P · ${x.total} picks</div>
             </div>
             <div class="bar-val">${x.decisions?fmtPct(x.rate):"—"}<div class="small">${x.decisions?`(${x.w}/${x.decisions})`:"No decisions"}</div></div>
           </div>`).join("")}</div>
