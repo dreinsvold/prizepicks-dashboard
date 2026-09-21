@@ -400,6 +400,13 @@ summary{cursor:pointer;font-weight:800}
 .latest-net{font-size:22px;font-weight:900}.latest-net.positive{color:var(--green)}.latest-net.negative{color:var(--red)}
 .mobile-recent-form{display:none}
 @media (max-width:680px){.desktop-matrix{display:none!important}.mobile-recent-form{display:grid;gap:7px;align-items:center;width:100%}.recent-head{font-size:9px;color:var(--muted);text-align:center;white-space:nowrap}.recent-name{font-size:12px;color:#dbe0ec}.recent-cell{display:grid;place-items:center;min-width:0;height:36px;border-radius:10px;background:#101522;border:1px solid var(--line);font-weight:900}.recent-cell.win{color:var(--green);background:rgba(99,255,50,.08)}.recent-cell.loss{color:var(--red);background:rgba(255,77,103,.08)}.recent-cell.push{color:var(--blue);background:rgba(89,184,255,.08)}}
+
+.promo-section{margin-top:14px;padding:12px;border:1px solid rgba(255,191,71,.28);background:rgba(255,191,71,.05);border-radius:14px}
+.promo-heading{font-weight:900;font-size:13px;color:var(--amber);margin-bottom:9px}.promo-heading span{font-weight:500;color:var(--muted);font-size:10px;margin-left:6px}
+.promo-row{padding:9px 0;border-top:1px solid rgba(255,191,71,.16)}.promo-row:first-of-type{border-top:0}
+.promo-badge{display:inline-block;border:1px solid rgba(255,191,71,.45);color:var(--amber);border-radius:999px;padding:2px 7px;font-size:9px;font-weight:900;margin-right:5px}
+.promo-prop{font-size:12px;color:#d8ddea;margin-top:4px}.promo-result{font-size:12px;margin-top:4px}
+@media (max-width:680px){.promo-heading span{display:block;margin:3px 0 0}}
 </style>
 </head>
 <body>
@@ -610,62 +617,18 @@ function renderMatrix(){
 }
 
 function renderWeekly(){
-  const sortedCards = cards.slice().sort((a,b)=>b.week-a.week || b.entered_at.localeCompare(a.entered_at));
-  document.getElementById("weekly").innerHTML = `
-    <div class="weekly-accordion">
-      ${sortedCards.map((c,idx)=>{
-        const cp=picks.filter(p=>p.card_id===c.card_id);
-        return `
-          <details class="week-panel card" ${idx===0?"open":""}>
-            <summary class="week-summary">
-              <div>
-                <div class="week-title">${c.display_label}</div>
-                <div class="week-meta">${c.format} · ${c.entered_at}</div>
-              </div>
-              <div class="week-result">
-                <strong>${c.card_record}</strong>
-                <span class="result ${c.card_outcome==="Win"?"win":"loss"}">${c.card_outcome}</span>
-                <span class="chev">›</span>
-              </div>
-            </summary>
-            <div class="week-body">
-              <div class="picks-grid compact-picks">
-                ${cp.map(p=>`
-                  <div class="pick-tile compact-pick ${resultClass(p.result)}">
-                    <div class="pick-top">
-                      <div class="picker-prominent">${p.picker}</div>
-                      <div class="pick-result-score">
-                        <span class="result ${resultClass(p.result)}">${resultIcon(p.result)} ${p.result.toUpperCase()}</span>
-                        <strong>${p.adjusted_score.toFixed(2)}</strong>
-                      </div>
-                    </div>
-                    <div class="player">${p.player}</div>
-                    <div class="prop">${p.direction} ${p.line} · ${p.prop_category}</div>
-                    <div class="pick-meta-row">
-                      ${pickBadge(p.pick_type)}
-                      <span>Actual ${p.actual} · Δ ${p.signed_delta>0?"+":""}${p.signed_delta}</span>
-                    </div>
-                    <div class="score-label">Performance · ${perfLabel(p.adjusted_score)}</div>
-                    <div class="mini-bar"><span style="width:${p.adjusted_score}%"></span></div>
-                    <details class="score-detail">
-                      <summary>Scoring detail</summary>
-                      <div class="note" style="margin-top:10px">A: ${p.score_a.toFixed(2)} · B: ${p.score_b.toFixed(2)} · Base: ${p.base_score.toFixed(2)}<br>Difficulty factor: ×${p.difficulty_factor.toFixed(2)} · Parameter: ${p.parameter_status}</div>
-                    </details>
-                  </div>`).join("")}
-              </div>
-              <div class="week-financial note">
-                <span>Entry: <strong>${money(c.entry_amount)}</strong></span>
-                <span>Paid: <strong>${money(c.paid_amount)}</strong></span>
-                <span>Net: <strong>${money(c.net_amount)}</strong></span>
-                <span>Goblin: <strong>${cp.filter(p=>p.pick_type==="Goblin").length}</strong></span>
-                <span>Standard: <strong>${cp.filter(p=>p.pick_type==="Standard").length}</strong></span>
-                <span>Demon: <strong>${cp.filter(p=>p.pick_type==="Demon").length}</strong></span>
-              </div>
-            </div>
-          </details>`;
-      }).join("")}
-    </div>`;
+  const sortedCards=cards.slice().sort((a,b)=>String(b.entered_at||"").localeCompare(String(a.entered_at||""))||(Number(b.week)||0)-(Number(a.week)||0));
+  document.getElementById("weekly").innerHTML=`<div class="weekly-accordion">${sortedCards.map((c,idx)=>{
+    const cp=picks.filter(p=>p.card_id===c.card_id).sort((a,b)=>participants.indexOf(a.picker)-participants.indexOf(b.picker));
+    const promos=promoPicks.filter(p=>p.card_id===c.card_id);
+    return `<details class="week-panel card" ${idx===0?"open":""}><summary class="week-summary"><div><div class="week-title">${c.display_label}</div><div class="week-meta">${c.format} · ${c.entered_at}</div></div><div class="week-result"><strong>${c.card_record||`${c.wins||0}-${c.losses||0}-${c.pushes||0}`}</strong><span class="result ${resultClass(c.card_outcome)}">${c.card_outcome||"Settled"}</span><span class="chev">›</span></div></summary><div class="week-body">
+      <div class="picks-grid compact-picks">${cp.map(p=>{const scored=isScoredPick(p);return `<div class="pick-tile compact-pick ${resultClass(p.result)}"><div class="pick-top"><div class="picker-prominent">${p.picker}</div><div class="pick-result-score"><span class="result ${resultClass(p.result)}">${resultIcon(p.result)} ${String(p.result||"Pending").toUpperCase()}</span><strong>${fmtScore(p.adjusted_score)}</strong></div></div><div class="player">${p.player}</div><div class="prop">${p.direction} ${fmtNum(p.line)} · ${p.prop_category}</div><div class="pick-meta-row">${pickBadge(p.pick_type)}<span>Actual ${fmtNum(p.actual)} · Δ ${fmtDelta(p.signed_delta)}</span></div><div class="score-label">Performance · ${perfLabel(p.adjusted_score)}</div>${scored?`<div class="mini-bar"><span style="width:${Math.max(0,Math.min(100,p.adjusted_score))}%"></span></div>`:""}<details class="score-detail"><summary>Scoring detail</summary>${scored?`<div class="note" style="margin-top:10px">A: ${fmtScore(p.score_a)} · B: ${fmtScore(p.score_b)} · Base: ${fmtScore(p.base_score)}<br>Difficulty factor: ${isFiniteNumber(p.difficulty_factor)?`×${p.difficulty_factor.toFixed(2)}`:"—"} · Parameter: ${p.parameter_status||"Pending"}</div>`:`<div class="note" style="margin-top:10px">Performance Score pending or excluded for this settlement.</div>`}</details></div>`;}).join("")}</div>
+      ${promos.length?`<div class="promo-section"><div class="promo-heading">Promo ${promos.length>1?"Picks":"Pick"} <span>Excluded from participant standings and Performance analytics</span></div>${promos.map(p=>`<div class="promo-row"><div><span class="promo-badge">PROMO</span> <strong>${p.player}</strong></div><div class="promo-prop">${p.direction} ${fmtNum(p.line)} · ${p.prop_category}${p.displayed_modifier?` · ${p.displayed_modifier}`:""}</div><div class="promo-result result ${resultClass(p.result)}">${resultIcon(p.result)} ${p.result} · Actual ${fmtNum(p.actual)}</div></div>`).join("")}</div>`:""}
+      <div class="week-financial note"><span>Entry: <strong>${money(c.entry_amount)}</strong></span><span>Paid: <strong>${money(c.paid_amount)}</strong></span><span>Net: <strong>${money(c.net_amount)}</strong></span><span>Goblin: <strong>${cp.filter(p=>p.pick_type==="Goblin").length}</strong></span><span>Standard: <strong>${cp.filter(p=>p.pick_type==="Standard").length}</strong></span><span>Demon: <strong>${cp.filter(p=>p.pick_type==="Demon").length}</strong></span></div>
+    </div></details>`;
+  }).join("")}</div>`;
 }
+
 function streakText(s){
   if(!s.streakType || !s.streak) return "—";
   return `${s.streakType==="Win"?"W":"L"}${s.streak}`;
