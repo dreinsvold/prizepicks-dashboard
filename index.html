@@ -378,6 +378,13 @@ summary{cursor:pointer;font-weight:800}
   }
 }
 
+
+/* v1.5 push-aware performance display */
+.type-meta{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.25}
+@media (max-width:680px){
+  .type-performance-row{grid-template-columns:92px minmax(0,1fr) 70px}
+  .type-meta{font-size:9px}
+}
 </style>
 </head>
 <body>
@@ -447,11 +454,14 @@ function statsForPicker(name){
   const avgBase = ps.length ? ps.reduce((a,p)=>a+p.base_score,0)/ps.length : 0;
   const avgAdj = ps.length ? ps.reduce((a,p)=>a+p.adjusted_score,0)/ps.length : 0;
   const best = ps.length ? Math.max(...ps.map(p=>p.adjusted_score)) : 0;
+  const pushes = ps.filter(p=>p.result==="Push").length;
   const byType = ["Goblin","Standard","Demon"].map(type=>{
     const arr=ps.filter(p=>p.pick_type===type);
     const w=arr.filter(p=>p.result==="Win").length;
     const l=arr.filter(p=>p.result==="Loss").length;
-    return {type,w,l,n:w+l,rate:(w+l)?w/(w+l)*100:null};
+    const push=arr.filter(p=>p.result==="Push").length;
+    const decisions=w+l;
+    return {type,w,l,push,decisions,total:arr.length,rate:decisions?w/decisions*100:null};
   });
   let streakType=null, streak=0;
   for(let i=ps.length-1;i>=0;i--){
@@ -460,7 +470,7 @@ function statsForPicker(name){
     else if(ps[i].result===streakType) streak++;
     else break;
   }
-  return {name,ps,wins,losses,decisions,hit,avgBase,avgAdj,best,byType,streakType,streak};
+  return {name,ps,wins,losses,pushes,decisions,hit,avgBase,avgAdj,best,byType,streakType,streak};
 }
 
 function sortedLeaderboard(){
@@ -471,8 +481,10 @@ function sortedLeaderboard(){
 
 function typeRecordText(s,type){
   const t=s.byType.find(x=>x.type===type);
-  if(!t || !t.n) return "—";
-  return `${t.w}-${t.l} (${fmtPct(t.rate)})`;
+  if(!t || !t.total) return "—";
+  const pushText=t.push ? ` · ${t.push}P` : "";
+  const rateText=t.decisions ? ` (${fmtPct(t.rate)})` : "";
+  return `${t.w}-${t.l}${pushText}${rateText}`;
 }
 
 function renderOverview(){
@@ -650,10 +662,15 @@ function pickTypePerformanceHTML(s){
   return s.byType.map(t=>{
     const rate=t.rate==null?0:t.rate;
     const badge=t.type==="Goblin"?pickBadge("Goblin"):t.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>';
-    return `<div class="chart-row">
+    const decisionText=t.decisions ? `${t.w}-${t.l} decisions` : "0 decisions";
+    const pushText=t.push ? ` · ${t.push} Push${t.push===1?"":"es"}` : "";
+    return `<div class="chart-row type-performance-row">
       <div class="chart-label">${badge}</div>
-      <div class="chart-track"><div class="chart-fill" style="width:${rate}%"></div></div>
-      <div class="bar-val">${t.n?fmtPct(rate):"—"}<div class="small">${t.n?`(${t.w}/${t.n})`:"n=0"}</div></div>
+      <div>
+        <div class="chart-track"><div class="chart-fill" style="width:${rate}%"></div></div>
+        <div class="type-meta">${decisionText}${pushText} · ${t.total} pick${t.total===1?"":"s"}</div>
+      </div>
+      <div class="bar-val">${t.decisions?fmtPct(rate):"—"}<div class="small">${t.decisions?`(${t.w}/${t.decisions})`:"No decisions"}</div></div>
     </div>`;
   }).join("");
 }
@@ -670,7 +687,7 @@ function propCategoryHTML(s){
   return `<div class="table-wrap"><table>
     <thead><tr><th>Category</th><th>Record</th><th>Hit %</th><th>Avg Performance</th><th>Sample</th></tr></thead>
     <tbody>${byCat.map(x=>`
-      <tr><td>${x.cat}</td><td>${x.w}-${x.l}</td><td>${fmtPct(x.w/x.n*100)}</td><td>${(x.total/x.n).toFixed(2)}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>`).join("")}
+      <tr><td>${x.cat}</td><td>${x.w}-${x.l}</td><td>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</td><td>${(x.total/x.n).toFixed(2)}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>`).join("")}
     </tbody>
   </table></div>`;
 }
@@ -684,7 +701,7 @@ function renderPickers(active=participants[0]){
       <div class="card-header">
         <div>
           <div class="card-title">${active}</div>
-          <div class="profile-headline">${s.wins}-${s.losses} · ${fmtPct(s.hit)} Hit Rate · ${streakText(s)} Streak · ${s.avgAdj.toFixed(2)} Avg Performance</div>
+          <div class="profile-headline">${s.wins}-${s.losses}${s.pushes?` · ${s.pushes} Push${s.pushes===1?"":"es"}`:""} · ${fmtPct(s.hit)} Hit Rate · ${streakText(s)} Streak · ${s.avgAdj.toFixed(2)} Avg Performance</div>
         </div>
         <div class="record">${s.wins}-${s.losses}</div>
       </div>
@@ -743,13 +760,16 @@ function renderAnalytics(){
     const arr=picks.filter(p=>p.pick_type===type);
     const w=arr.filter(p=>p.result==="Win").length;
     const l=arr.filter(p=>p.result==="Loss").length;
-    return {type,n:w+l,w,l,rate:(w+l)?w/(w+l)*100:0,avg:arr.length?arr.reduce((a,p)=>a+p.adjusted_score,0)/arr.length:0};
+    const push=arr.filter(p=>p.result==="Push").length;
+    const decisions=w+l;
+    return {type,total:arr.length,decisions,push,w,l,rate:decisions?w/decisions*100:null,avg:arr.length?arr.reduce((a,p)=>a+p.adjusted_score,0)/arr.length:0};
   });
   const byCat = Object.values(picks.reduce((acc,p)=>{
-    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,total:0};
+    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,total:0};
     acc[p.prop_category].n++;
     acc[p.prop_category].w += p.result==="Win" ? 1:0;
     acc[p.prop_category].l += p.result==="Loss" ? 1:0;
+    acc[p.prop_category].push += p.result==="Push" ? 1:0;
     acc[p.prop_category].total += p.adjusted_score;
     return acc;
   },{})).sort((a,b)=>(b.w/b.n)-(a.w/a.n));
@@ -761,8 +781,11 @@ function renderAnalytics(){
         <div class="chart">${byType.map(x=>`
           <div class="chart-row">
             <div class="chart-label">${x.type==="Goblin"?pickBadge("Goblin"):x.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>'}</div>
-            <div class="chart-track"><div class="chart-fill" style="width:${x.rate}%"></div></div>
-            <div class="bar-val">${x.n?fmtPct(x.rate):"—"}<div class="small">${x.n?`(${x.w}/${x.n})`:"n=0"}</div></div>
+            <div>
+              <div class="chart-track"><div class="chart-fill" style="width:${x.rate==null?0:x.rate}%"></div></div>
+              <div class="type-meta">${x.w}-${x.l} decisions${x.push?` · ${x.push} Push${x.push===1?"":"es"}`:""} · ${x.total} picks</div>
+            </div>
+            <div class="bar-val">${x.decisions?fmtPct(x.rate):"—"}<div class="small">${x.decisions?`(${x.w}/${x.decisions})`:"No decisions"}</div></div>
           </div>`).join("")}</div>
       </div>
       <div class="card">
