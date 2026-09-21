@@ -683,7 +683,7 @@ function propCategoryHTML(s){
 
 function renderPickers(active=participants[0]){
   const x=statsForPicker(active);
-  document.getElementById("pickers").innerHTML=`<div class="picker-tabs">${participants.map(n=>`<button class="${n===active?"active":""}" onclick="renderPickers(\'${n}\')">${n}</button>`).join("")}</div>
+  document.getElementById("pickers").innerHTML=`<div class="picker-tabs">${participants.map(n=>`<button class="${n===active?"active":""}" onclick="renderPickers('${n}')">${n}</button>`).join("")}</div>
   <div class="card"><div class="card-header"><div><div class="card-title">${active}</div><div class="profile-headline">${x.wins}-${x.losses}-${x.pushes} · ${fmtPct(x.hit)} Hit Rate · ${streakText(x)} Streak · ${fmtScore(x.avgAdj)} Avg Performance</div></div><div class="record">${x.wins}-${x.losses}-${x.pushes}</div></div>
   <div class="profile-hero"><div class="statbox"><div class="n">${x.ps.length}</div><div class="l">Picks Made</div></div><div class="statbox"><div class="n">${fmtScore(x.avgBase)}</div><div class="l">Avg Base</div></div><div class="statbox"><div class="n">${fmtScore(x.avgAdj)}</div><div class="l">Avg Performance</div></div><div class="statbox"><div class="n">${fmtScore(x.best)}</div><div class="l">Best Performance</div></div></div>
   <div class="card" style="box-shadow:none;background:#111522;margin-top:6px"><div class="section-title"><h2>Season Form</h2><span>Chronological cards</span></div>${seasonFormHTML(x)}</div>
@@ -696,72 +696,30 @@ function renderPickers(active=participants[0]){
 }
 
 function renderAnalytics(){
-  const byType = ["Goblin","Standard","Demon"].map(type=>{
+  const byType=["Goblin","Standard","Demon"].map(type=>{
     const arr=picks.filter(p=>p.pick_type===type);
     const w=arr.filter(p=>p.result==="Win").length;
     const l=arr.filter(p=>p.result==="Loss").length;
     const push=arr.filter(p=>p.result==="Push").length;
     const decisions=w+l;
-    return {type,total:arr.length,decisions,push,w,l,rate:decisions?w/decisions*100:null,avg:arr.length?arr.reduce((a,p)=>a+p.adjusted_score,0)/arr.length:0};
+    const scored=arr.filter(isScoredPick);
+    return {type,total:arr.length,decisions,push,w,l,rate:decisions?w/decisions*100:null,avg:scored.length?scored.reduce((a,p)=>a+p.adjusted_score,0)/scored.length:null};
   });
-  const byCat = Object.values(picks.reduce((acc,p)=>{
-    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,total:0};
-    acc[p.prop_category].n++;
-    acc[p.prop_category].w += p.result==="Win" ? 1:0;
-    acc[p.prop_category].l += p.result==="Loss" ? 1:0;
-    acc[p.prop_category].push += p.result==="Push" ? 1:0;
-    acc[p.prop_category].total += p.adjusted_score;
+  const byCat=Object.values(picks.reduce((acc,p)=>{
+    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,scoreTotal:0,scoreCount:0};
+    const x=acc[p.prop_category]; x.n++; x.w+=p.result==="Win"?1:0; x.l+=p.result==="Loss"?1:0; x.push+=p.result==="Push"?1:0;
+    if(isScoredPick(p)){x.scoreTotal+=p.adjusted_score;x.scoreCount++;}
     return acc;
-  },{})).sort((a,b)=>{const ad=a.w+a.l,bd=b.w+b.l;const ar=ad?a.w/ad:0,br=bd?b.w/bd:0;return br-ar || (b.total/b.n)-(a.total/a.n);});
-
-  document.getElementById("analytics").innerHTML = `
+  },{})).sort((a,b)=>{const ad=a.w+a.l,bd=b.w+b.l;const ar=ad?a.w/ad:-1,br=bd?b.w/bd:-1;const aa=a.scoreCount?a.scoreTotal/a.scoreCount:-1,ba=b.scoreCount?b.scoreTotal/b.scoreCount:-1;return br-ar||ba-aa;});
+  document.getElementById("analytics").innerHTML=`
     <div class="grid hero-grid">
-      <div class="card">
-        <div class="section-title"><h2>Pick-Type Performance</h2><span>Sample size always shown</span></div>
-        <div class="chart">${byType.map(x=>`
-          <div class="chart-row">
-            <div class="chart-label">${x.type==="Goblin"?pickBadge("Goblin"):x.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>'}</div>
-            <div>
-              <div class="chart-track"><div class="chart-fill" style="width:${x.rate==null?0:x.rate}%"></div></div>
-              <div class="type-meta">${x.w}-${x.l}-${x.push} W-L-P · ${x.total} picks</div>
-            </div>
-            <div class="bar-val">${x.decisions?fmtPct(x.rate):"—"}<div class="small">${x.decisions?`(${x.w}/${x.decisions})`:"No decisions"}</div></div>
-          </div>`).join("")}</div>
-      </div>
-      <div class="card">
-        <div class="section-title"><h2>Card Performance</h2><span>Human selections only</span></div>
-        <div class="bar-list">
-          ${[5,4,3,2,1,0].map(n=>{
-            const count=cards.filter(c=>c.wins===n).length;
-            return `<div class="bar-row"><div class="chart-label">${n} / 5</div><div class="bar-track"><div class="bar-fill" style="width:${cards.length?count/cards.length*100:0}%"></div></div><div class="bar-val">${count}</div></div>`;
-          }).join("")}
-        </div>
-      </div>
+      <div class="card"><div class="section-title"><h2>Pick-Type Performance</h2><span>Sample size always shown</span></div><div class="chart">${byType.map(x=>`<div class="chart-row"><div class="chart-label">${x.type==="Goblin"?pickBadge("Goblin"):x.type==="Demon"?pickBadge("Demon"):'<span class="badge std">Standard</span>'}</div><div><div class="chart-track"><div class="chart-fill" style="width:${x.rate==null?0:x.rate}%"></div></div><div class="type-meta">${x.w}-${x.l}-${x.push} W-L-P · ${x.total} picks</div></div><div class="bar-val">${x.decisions?fmtPct(x.rate):"—"}<div class="small">${x.decisions?`(${x.w}/${x.decisions})`:"No decisions"}</div></div></div>`).join("")}</div></div>
+      <div class="card"><div class="section-title"><h2>Wins per Card</h2><span>Human selections only</span></div><div class="bar-list">${[5,4,3,2,1,0].map(n=>{const count=cards.filter(c=>c.wins===n).length;return `<div class="bar-row"><div class="chart-label">${n} wins</div><div class="bar-track"><div class="bar-fill" style="width:${cards.length?count/cards.length*100:0}%"></div></div><div class="bar-val">${count}</div></div>`;}).join("")}</div></div>
     </div>
-
-    <div class="card" style="margin-top:16px">
-      <div class="section-title"><h2>Prop Category Performance</h2><span>Low samples remain visible and labeled</span></div>
-      <div class="table-wrap analytics-desktop">
-      <table>
-        <thead><tr><th>Category</th><th>W-L-P</th><th>Hit %</th><th>Avg Performance</th><th>Sample</th></tr></thead>
-        <tbody>${byCat.map(x=>`
-          <tr><td>${x.cat}</td><td>${x.w}-${x.l}-${x.push}</td><td>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</td><td>${(x.total/x.n).toFixed(2)}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>
-        `).join("")}</tbody>
-      </table></div>
-      <div class="analytics-mobile">
-        ${byCat.map(x=>`
-          <div class="category-mobile-row">
-            <div class="category-mobile-top"><strong>${x.cat}</strong><span>n=${x.n}</span></div>
-            <div class="category-mobile-stats">
-              <span><b>${x.w}-${x.l}-${x.push}</b><small>W-L-P</small></span>
-              <span><b>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</b><small>Hit Rate</small></span>
-              <span><b>${(x.total/x.n).toFixed(2)}</b><small>Avg Performance</small></span>
-            </div>
-            ${x.n<3?'<div class="small-sample-text">Small Sample</div>':""}
-          </div>`).join("")}
-      </div>
-    </div>
-  `;
+    <div class="card" style="margin-top:16px"><div class="section-title"><h2>Prop Category Performance</h2><span>Low samples remain visible and labeled</span></div>
+      <div class="table-wrap analytics-desktop"><table><thead><tr><th>Category</th><th>W-L-P</th><th>Hit %</th><th>Avg Performance</th><th>Sample</th></tr></thead><tbody>${byCat.map(x=>`<tr><td>${x.cat}</td><td>${x.w}-${x.l}-${x.push}</td><td>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</td><td>${x.scoreCount?(x.scoreTotal/x.scoreCount).toFixed(2):"Pending"}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>`).join("")}</tbody></table></div>
+      <div class="analytics-mobile">${byCat.map(x=>`<div class="category-mobile-row"><div class="category-mobile-top"><strong>${x.cat}</strong><span>n=${x.n}</span></div><div class="category-mobile-stats"><span><b>${x.w}-${x.l}-${x.push}</b><small>W-L-P</small></span><span><b>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</b><small>Hit Rate</small></span><span><b>${x.scoreCount?(x.scoreTotal/x.scoreCount).toFixed(2):"Pending"}</b><small>Avg Performance</small></span></div>${x.n<3?'<div class="small-sample-text">Small Sample</div>':""}</div>`).join("")}</div>
+    </div>`;
 }
 
 function renderMethodology(){
