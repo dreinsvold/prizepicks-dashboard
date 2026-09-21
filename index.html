@@ -644,22 +644,15 @@ function seasonFormHTML(s){
 }
 
 function performanceTrendHTML(s){
-  const arr=s.ps;
+  const arr=s.ps.filter(isScoredPick);
   if(!arr.length) return `<div class="note">No scored picks yet.</div>`;
   const W=520,H=150,pad=24;
-  const x = i => arr.length===1 ? W/2 : pad + i*(W-2*pad)/(arr.length-1);
-  const y = v => H-pad - (v/100)*(H-2*pad);
+  const x=i=>arr.length===1?W/2:pad+i*(W-2*pad)/(arr.length-1);
+  const y=v=>H-pad-(v/100)*(H-2*pad);
   const points=arr.map((p,i)=>`${x(i)},${y(p.adjusted_score)}`).join(" ");
-  const dots=arr.map((p,i)=>`<circle class="trend-dot" cx="${x(i)}" cy="${y(p.adjusted_score)}" r="4"><title>${p.display_label}: ${p.adjusted_score.toFixed(2)}</title></circle>`).join("");
+  const dots=arr.map((p,i)=>`<circle class="trend-dot" cx="${x(i)}" cy="${y(p.adjusted_score)}" r="4"><title>${p.display_label}: ${fmtScore(p.adjusted_score)}</title></circle>`).join("");
   const labels=arr.map((p,i)=>`<text class="trend-label" x="${x(i)}" y="${H-4}" text-anchor="middle">${p.display_label.replace(" · Main","")}</text>`).join("");
-  return `<div class="trend-wrap">
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-      <line class="trend-neutral" x1="${pad}" x2="${W-pad}" y1="${y(50)}" y2="${y(50)}"></line>
-      <text class="trend-label" x="2" y="${y(50)-3}">50</text>
-      ${arr.length>1 ? `<polyline class="trend-line" points="${points}"></polyline>` : ""}
-      ${dots}${labels}
-    </svg>
-  </div>`;
+  return `<div class="trend-wrap"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line class="trend-neutral" x1="${pad}" x2="${W-pad}" y1="${y(50)}" y2="${y(50)}"></line><text class="trend-label" x="2" y="${y(50)-3}">50</text>${arr.length>1?`<polyline class="trend-line" points="${points}"></polyline>`:""}${dots}${labels}</svg></div>`;
 }
 
 function pickTypePerformanceHTML(s){
@@ -680,82 +673,26 @@ function pickTypePerformanceHTML(s){
 
 function propCategoryHTML(s){
   const byCat=Object.values(s.ps.reduce((acc,p)=>{
-    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,total:0};
-    acc[p.prop_category].n++;
-    acc[p.prop_category].w += p.result==="Win"?1:0;
-    acc[p.prop_category].l += p.result==="Loss"?1:0;
-    acc[p.prop_category].total += p.adjusted_score;
+    acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,scoreTotal:0,scoreCount:0};
+    const x=acc[p.prop_category]; x.n++; x.w+=p.result==="Win"?1:0; x.l+=p.result==="Loss"?1:0; x.push+=p.result==="Push"?1:0;
+    if(isScoredPick(p)){x.scoreTotal+=p.adjusted_score;x.scoreCount++;}
     return acc;
-  },{})).sort((a,b)=>b.n-a.n || b.total/b.n-a.total/a.n);
-  return `<div class="table-wrap"><table>
-    <thead><tr><th>Category</th><th>W-L-P</th><th>Hit %</th><th>Avg Performance</th><th>Sample</th></tr></thead>
-    <tbody>${byCat.map(x=>`
-      <tr><td>${x.cat}</td><td>${x.w}-${x.l}-${x.n-x.w-x.l}</td><td>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</td><td>${(x.total/x.n).toFixed(2)}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>`).join("")}
-    </tbody>
-  </table></div>`;
+  },{})).sort((a,b)=>b.n-a.n||((b.scoreCount?b.scoreTotal/b.scoreCount:-1)-(a.scoreCount?a.scoreTotal/a.scoreCount:-1)));
+  return `<div class="table-wrap"><table><thead><tr><th>Category</th><th>W-L-P</th><th>Hit %</th><th>Avg Performance</th><th>Sample</th></tr></thead><tbody>${byCat.map(x=>`<tr><td>${x.cat}</td><td>${x.w}-${x.l}-${x.push}</td><td>${(x.w+x.l)?fmtPct(x.w/(x.w+x.l)*100):"—"}</td><td>${x.scoreCount?(x.scoreTotal/x.scoreCount).toFixed(2):"Pending"}</td><td>${x.n<3?'<span class="badge std">Small Sample</span>':x.n}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderPickers(active=participants[0]){
-  const s=statsForPicker(active);
-  document.getElementById("pickers").innerHTML = `
-    <div class="picker-tabs">${participants.map(n=>`<button class="${n===active?"active":""}" onclick="renderPickers('${n}')">${n}</button>`).join("")}</div>
-
-    <div class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">${active}</div>
-          <div class="profile-headline">${s.wins}-${s.losses}-${s.pushes} · ${fmtPct(s.hit)} Hit Rate · ${streakText(s)} Streak · ${s.avgAdj.toFixed(2)} Avg Performance</div>
-        </div>
-        <div class="record">${s.wins}-${s.losses}-${s.pushes}</div>
-      </div>
-
-      <div class="profile-hero">
-        <div class="statbox"><div class="n">${s.ps.length}</div><div class="l">Picks Made</div></div>
-        <div class="statbox"><div class="n">${s.avgBase.toFixed(2)}</div><div class="l">Avg Base</div></div>
-        <div class="statbox"><div class="n">${s.avgAdj.toFixed(2)}</div><div class="l">Avg Performance</div></div>
-        <div class="statbox"><div class="n">${s.best.toFixed(2)}</div><div class="l">Best Performance</div></div>
-      </div>
-
-      <div class="card" style="box-shadow:none;background:#111522;margin-top:6px">
-        <div class="section-title"><h2>Season Form</h2><span>Chronological cards</span></div>
-        ${seasonFormHTML(s)}
-      </div>
-
-      <div class="profile-grid">
-        <div class="card" style="box-shadow:none;background:#111522">
-          <div class="section-title"><h2>Performance Trend</h2><span>50 = neutral line</span></div>
-          ${performanceTrendHTML(s)}
-        </div>
-        <div class="card" style="box-shadow:none;background:#111522">
-          <div class="section-title"><h2>Pick-Type Performance</h2><span>Sample size shown</span></div>
-          <div class="chart">${pickTypePerformanceHTML(s)}</div>
-        </div>
-      </div>
-
-      <div class="card" style="box-shadow:none;background:#111522;margin-bottom:16px">
-        <div class="section-title"><h2>Prop Category Performance</h2><span>Small samples labeled</span></div>
-        ${propCategoryHTML(s)}
-      </div>
-
-      <div class="section-title"><h2>Complete Pick History</h2><span>Card labels support holiday/special cards</span></div>
-      <div class="table-wrap picker-history desktop-history">
-      <table>
-        <thead><tr><th>Card</th><th>Player</th><th>Prop</th><th>Line</th><th>Pick</th><th>Type</th><th>Actual</th><th>Δ</th><th>Result</th><th>Performance</th></tr></thead>
-        <tbody>${s.ps.map(p=>`
-          <tr><td>${p.display_label}</td><td class="picker">${p.player}</td><td>${p.prop_category}</td><td>${p.line}</td><td>${p.direction}</td><td>${pickBadge(p.pick_type)}</td><td>${p.actual}</td><td>${p.signed_delta>0?"+":""}${p.signed_delta}</td><td class="result ${resultClass(p.result)}">${p.result}</td><td><strong>${p.adjusted_score.toFixed(2)}</strong></td></tr>
-        `).join("")}</tbody>
-      </table></div>
-      <div class="mobile-history">
-        ${s.ps.map(p=>`
-          <div class="history-row">
-            <div class="history-card">${p.display_label}</div>
-            <div class="history-main"><strong>${p.player}</strong><span>${p.direction} ${p.line} · ${p.prop_category}</span></div>
-            <div>${compactType(p.pick_type)}</div>
-            <div class="result ${resultClass(p.result)}">${p.result}</div>
-            <div class="history-score">${p.adjusted_score.toFixed(2)}</div>
-          </div>`).join("")}
-      </div>
-    </div>`;
+  const x=statsForPicker(active);
+  document.getElementById("pickers").innerHTML=`<div class="picker-tabs">${participants.map(n=>`<button class="${n===active?"active":""}" onclick="renderPickers(\'${n}\')">${n}</button>`).join("")}</div>
+  <div class="card"><div class="card-header"><div><div class="card-title">${active}</div><div class="profile-headline">${x.wins}-${x.losses}-${x.pushes} · ${fmtPct(x.hit)} Hit Rate · ${streakText(x)} Streak · ${fmtScore(x.avgAdj)} Avg Performance</div></div><div class="record">${x.wins}-${x.losses}-${x.pushes}</div></div>
+  <div class="profile-hero"><div class="statbox"><div class="n">${x.ps.length}</div><div class="l">Picks Made</div></div><div class="statbox"><div class="n">${fmtScore(x.avgBase)}</div><div class="l">Avg Base</div></div><div class="statbox"><div class="n">${fmtScore(x.avgAdj)}</div><div class="l">Avg Performance</div></div><div class="statbox"><div class="n">${fmtScore(x.best)}</div><div class="l">Best Performance</div></div></div>
+  <div class="card" style="box-shadow:none;background:#111522;margin-top:6px"><div class="section-title"><h2>Season Form</h2><span>Chronological cards</span></div>${seasonFormHTML(x)}</div>
+  <div class="profile-grid"><div class="card" style="box-shadow:none;background:#111522"><div class="section-title"><h2>Performance Trend</h2><span>50 = neutral line</span></div>${performanceTrendHTML(x)}</div><div class="card" style="box-shadow:none;background:#111522"><div class="section-title"><h2>Pick-Type Performance</h2><span>Sample size shown</span></div><div class="chart">${pickTypePerformanceHTML(x)}</div></div></div>
+  <div class="card" style="box-shadow:none;background:#111522;margin-bottom:16px"><div class="section-title"><h2>Prop Category Performance</h2><span>Small samples labeled</span></div>${propCategoryHTML(x)}</div>
+  <div class="section-title"><h2>Complete Pick History</h2><span>Card labels support holiday/special cards</span></div>
+  <div class="table-wrap picker-history desktop-history"><table><thead><tr><th>Card</th><th>Player</th><th>Prop</th><th>Line</th><th>Pick</th><th>Type</th><th>Actual</th><th>Δ</th><th>Result</th><th>Performance</th></tr></thead><tbody>${x.ps.map(p=>`<tr><td>${p.display_label}</td><td class="picker">${p.player}</td><td>${p.prop_category}</td><td>${fmtNum(p.line)}</td><td>${p.direction}</td><td>${pickBadge(p.pick_type)}</td><td>${fmtNum(p.actual)}</td><td>${fmtDelta(p.signed_delta)}</td><td class="result ${resultClass(p.result)}">${p.result}</td><td><strong>${fmtScore(p.adjusted_score)}</strong></td></tr>`).join("")}</tbody></table></div>
+  <div class="mobile-history">${x.ps.map(p=>`<div class="history-row"><div class="history-card">${p.display_label}</div><div class="history-main"><strong>${p.player}</strong><span>${p.direction} ${fmtNum(p.line)} · ${p.prop_category}</span></div><div>${compactType(p.pick_type)}</div><div class="result ${resultClass(p.result)}">${p.result}</div><div class="history-score">${fmtScore(p.adjusted_score)}</div></div>`).join("")}</div>
+  </div>`;
 }
 
 function renderAnalytics(){
