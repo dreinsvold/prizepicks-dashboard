@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "season": 2026,
+  "status": "bootstrap_pending_week2_publish",
+  "canonical": true,
+  "record_format": "W-L-P",
+  "push_policy": {
+    "counts_toward_picks_made": true,
+    "excluded_from_hit_rate": true,
+    "performance_score": 50.0,
+    "included_in_avg_performance": true,
+    "included_in_segment_sample_counts": true,
+    "streak_effect": "neither_win_nor_loss"
+  },
+  "leaderboard_order": ["hit_rate", "wins", "avg_performance"],
+  "note": "Repository canonical data path established. Replace this bootstrap document with the complete approved Week 1 + Week 2 season dataset during the Week 2 production publish."
+}
