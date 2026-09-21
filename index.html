@@ -396,6 +396,10 @@ summary{cursor:pointer;font-weight:800}
 .matrix .cell.push{color:var(--blue);background:rgba(89,184,255,.08)}
 .retry-btn{background:var(--purple);color:white;border:0;border-radius:999px;padding:9px 14px;font-weight:800;cursor:pointer}
 .load-error{max-width:680px;margin:20px auto}
+
+.latest-net{font-size:22px;font-weight:900}.latest-net.positive{color:var(--green)}.latest-net.negative{color:var(--red)}
+.mobile-recent-form{display:none}
+@media (max-width:680px){.desktop-matrix{display:none!important}.mobile-recent-form{display:grid;gap:7px;align-items:center;width:100%}.recent-head{font-size:9px;color:var(--muted);text-align:center;white-space:nowrap}.recent-name{font-size:12px;color:#dbe0ec}.recent-cell{display:grid;place-items:center;min-width:0;height:36px;border-radius:10px;background:#101522;border:1px solid var(--line);font-weight:900}.recent-cell.win{color:var(--green);background:rgba(99,255,50,.08)}.recent-cell.loss{color:var(--red);background:rgba(255,77,103,.08)}.recent-cell.push{color:var(--blue);background:rgba(89,184,255,.08)}}
 </style>
 </head>
 <body>
@@ -553,85 +557,56 @@ function typeRecordText(s,type){
 }
 
 function renderOverview(){
-  const leaderboard = sortedLeaderboard();
-  const human = picks.filter(p=>participants.includes(p.picker));
-  const wins = human.filter(p=>p.result==="Win").length;
-  const losses = human.filter(p=>p.result==="Loss").length;
-  const pushes = human.filter(p=>p.result==="Push").length;
-  const decisions = wins+losses;
-  const hit = decisions ? wins/decisions*100 : 0;
-  const perfect = cards.filter(c=>c.wins===5 && c.losses===0 && (c.pushes||0)===0).length;
-  const avgWins = cards.length ? cards.reduce((a,c)=>a+c.wins,0)/cards.length : 0;
-  const totalEntry = cards.reduce((a,c)=>a+(c.entry_amount||0),0);
-  const totalPaid = cards.reduce((a,c)=>a+(c.paid_amount||0),0);
-  const totalNet = cards.reduce((a,c)=>a+(c.net_amount||0),0);
-
-  document.getElementById("overview").innerHTML = `
+  const leaderboard=sortedLeaderboard();
+  const human=picks.filter(p=>participants.includes(p.picker));
+  const wins=human.filter(p=>p.result==="Win").length;
+  const losses=human.filter(p=>p.result==="Loss").length;
+  const pushes=human.filter(p=>p.result==="Push").length;
+  const decisions=wins+losses;
+  const hit=decisions?wins/decisions*100:0;
+  const perfect=cards.filter(c=>c.wins===5&&c.losses===0&&(c.pushes||0)===0).length;
+  const avgWins=cards.length?cards.reduce((a,c)=>a+(c.wins||0),0)/cards.length:0;
+  const totalEntry=cards.reduce((a,c)=>a+(isFiniteNumber(c.entry_amount)?c.entry_amount:0),0);
+  const totalPaid=cards.reduce((a,c)=>a+(isFiniteNumber(c.paid_amount)?c.paid_amount:0),0);
+  const totalNet=cards.reduce((a,c)=>a+(isFiniteNumber(c.net_amount)?c.net_amount:0),0);
+  const leaders=leaderboard.filter(x=>x.rank===1).map(x=>x.name);
+  const latest=getLatestCard();
+  const latestPicks=latest?picks.filter(p=>p.card_id===latest.card_id).sort((a,b)=>participants.indexOf(a.picker)-participants.indexOf(b.picker)):[];
+  document.getElementById("overview").innerHTML=`
     <div class="grid kpis">
       <div class="card kpi"><div class="label">Human Pick Record</div><div class="value">${wins}-${losses}-${pushes}</div><div class="hint">${fmtPct(hit)} hit rate · W-L-P</div></div>
-      <div class="card kpi"><div class="label">Cards Played</div><div class="value">${cards.length}</div><div class="hint">2026 season</div></div>
+      <div class="card kpi"><div class="label">Cards Played</div><div class="value">${cards.length}</div><div class="hint">${DATA.season} season</div></div>
       <div class="card kpi"><div class="label">Perfect Cards</div><div class="value">${perfect}</div><div class="hint">5-for-5</div></div>
       <div class="card kpi"><div class="label">Avg Wins / Card</div><div class="value">${avgWins.toFixed(2)}</div><div class="hint">out of 5</div></div>
-      <div class="card kpi"><div class="label">Current Leader</div><div class="value">${leaderboard[0]?.name || "—"}</div><div class="hint">formal ranking rules</div></div>
+      <div class="card kpi"><div class="label">Current Leader</div><div class="value">${leaders.length?leaders.join(" / "):"—"}</div><div class="hint">formal ranking rules</div></div>
       <div class="card kpi"><div class="label">Net</div><div class="value">${money(totalNet)}</div><div class="hint">${money(totalEntry)} in · ${money(totalPaid)} paid</div></div>
     </div>
-
     <div class="grid hero-grid">
       <div class="card">
         <div class="section-title"><h2>Season Leaderboard</h2><span>Hit % → Wins → Avg Performance</span></div>
-        <div class="table-wrap">
-        <table>
-          <thead><tr><th>Rank</th><th>Picker</th><th>W-L-P</th><th>Hit %</th><th>Goblin</th><th>Standard</th><th>Demon</th><th>Avg Base</th><th>Avg Performance</th></tr></thead>
-          <tbody>${leaderboard.map((s,i)=>`
-            <tr>
-              <td class="rank">${i+1}</td><td class="picker">${s.name}</td>
-              <td>${s.wins}-${s.losses}-${s.pushes}</td><td>${fmtPct(s.hit)}</td>
-              <td>${typeRecordText(s,"Goblin")}</td><td>${typeRecordText(s,"Standard")}</td><td>${typeRecordText(s,"Demon")}</td>
-              <td>${s.avgBase.toFixed(2)}</td><td><strong>${s.avgAdj.toFixed(2)}</strong></td>
-            </tr>`).join("")}
-          </tbody>
-        </table></div>
+        <div class="table-wrap"><table><thead><tr><th>Rank</th><th>Picker</th><th>W-L-P</th><th>Hit %</th><th>Goblin</th><th>Standard</th><th>Demon</th><th>Avg Base</th><th>Avg Performance</th></tr></thead>
+        <tbody>${leaderboard.map(x=>`<tr><td class="rank">${x.rank}</td><td class="picker">${x.name}</td><td>${x.wins}-${x.losses}-${x.pushes}</td><td>${fmtPct(x.hit)}</td><td>${typeRecordText(x,"Goblin")}</td><td>${typeRecordText(x,"Standard")}</td><td>${typeRecordText(x,"Demon")}</td><td>${fmtScore(x.avgBase)}</td><td><strong>${fmtScore(x.avgAdj)}</strong></td></tr>`).join("")}</tbody></table></div>
       </div>
-
       <div class="card">
-        <div class="section-title"><h2>Week 1 Snapshot</h2><span>2026-W01-MAIN</span></div>
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px">
-          <div><div class="record">4–1</div><div class="card-sub">5-Pick Flex · Win</div></div>
-          <div style="text-align:right"><div style="font-size:22px;font-weight:900;color:var(--green)">+$12.50</div><div class="small">$25 entered · $37.50 paid</div></div>
-        </div>
-        <div class="chart" style="margin-top:14px">${scoreBars(leaderboard)}</div>
+        ${latest?`<div class="section-title"><h2>Latest Card · ${latest.display_label}</h2><span>${latest.card_id}</span></div><div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px"><div><div class="record">${latest.card_record||`${latest.wins||0}-${latest.losses||0}-${latest.pushes||0}`}</div><div class="card-sub">${latest.format} · ${latest.card_outcome||"Settled"}</div></div><div style="text-align:right"><div class="latest-net ${(latest.net_amount||0)>0?"positive":(latest.net_amount||0)<0?"negative":""}">${money(latest.net_amount)}</div><div class="small">${money(latest.entry_amount)} entered · ${money(latest.paid_amount)} paid</div></div></div><div class="chart" style="margin-top:14px">${cardScoreBars(latestPicks)}</div>`:`<div class="note">No completed cards yet.</div>`}
       </div>
     </div>
-
-    <div class="card" style="margin-top:16px">
-      <div class="section-title"><h2>Picker × Card Matrix</h2><span>Special cards retain their own labels</span></div>
-      ${renderMatrix()}
-    </div>
+    <div class="card" style="margin-top:16px"><div class="section-title"><h2>Picker × Card Matrix</h2><span>Recent form on mobile · full season on desktop</span></div>${renderMatrix()}</div>
   `;
 }
 
-function scoreBars(stats){
-  return stats.map(s=>`
-    <div class="bar-row">
-      <div class="chart-label">${s.name}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${Math.max(0,Math.min(100,s.avgAdj))}%"></div></div>
-      <div class="bar-val">${s.avgAdj.toFixed(2)}</div>
-    </div>`).join("");
+function cardScoreBars(cardPicks){
+  return cardPicks.map(p=>{const score=isScoredPick(p)?p.adjusted_score:0;return `<div class="bar-row"><div class="chart-label">${p.picker}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.max(0,Math.min(100,score))}%"></div></div><div class="bar-val">${fmtScore(p.adjusted_score)}</div></div>`;}).join("");
 }
 
 function renderMatrix(){
-  const allCards=[...cards].sort((a,b)=>a.week-b.week || a.card_name.localeCompare(b.card_name));
-  const cols = Math.max(1, allCards.length);
-  return `<div class="matrix" style="grid-template-columns:130px repeat(${cols},90px)">
-    <div></div>${allCards.map(c=>`<div class="head">${c.display_label}</div>`).join("")}
-    ${participants.map(name=>{
-      const cells=allCards.map(c=>{
-        const p=picks.find(x=>x.picker===name && x.card_id===c.card_id);
-        return `<div class="cell ${resultClass(p?.result)}">${p?resultIcon(p.result):"—"}</div>`;
-      }).join("");
-      return `<div class="rowlabel">${name}</div>${cells}`;
-    }).join("")}
-  </div>`;
+  const allCards=[...cards].sort((a,b)=>(Number(a.week)||0)-(Number(b.week)||0)||String(a.entered_at||"").localeCompare(String(b.entered_at||""))||String(a.card_name||"").localeCompare(String(b.card_name||"")));
+  const cols=Math.max(1,allCards.length);
+  const recent=[...allCards].reverse().slice(0,5);
+  const shortLabel=c=>c.card_name==="Main Card"?`W${c.week}`:`W${c.week}·${String(c.card_name||"").charAt(0).toUpperCase()}`;
+  const desktop=`<div class="matrix desktop-matrix" style="grid-template-columns:130px repeat(${cols},90px)"><div></div>${allCards.map(c=>`<div class="head">${c.display_label}</div>`).join("")}${participants.map(name=>{const cells=allCards.map(c=>{const p=picks.find(x=>x.picker===name&&x.card_id===c.card_id);return `<div class="cell ${resultClass(p?.result)}" title="${c.display_label}">${p?resultIcon(p.result):"—"}</div>`;}).join("");return `<div class="rowlabel">${name}</div>${cells}`;}).join("")}</div>`;
+  const mobile=`<div class="mobile-recent-form" style="grid-template-columns:72px repeat(${Math.max(1,recent.length)},minmax(0,1fr))"><div></div>${recent.map(c=>`<div class="recent-head" title="${c.display_label}">${shortLabel(c)}</div>`).join("")}${participants.map(name=>{const cells=recent.map(c=>{const p=picks.find(x=>x.picker===name&&x.card_id===c.card_id);return `<div class="recent-cell ${resultClass(p?.result)}" title="${c.display_label}">${p?resultIcon(p.result):"—"}</div>`;}).join("");return `<div class="recent-name">${name}</div>${cells}`;}).join("")}</div>`;
+  return desktop+mobile;
 }
 
 function renderWeekly(){
