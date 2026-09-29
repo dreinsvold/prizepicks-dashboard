@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PrizePicks Group Tracker — 2026</title>
 <!-- Canonical season dataset: data/prizepicks_2026.json -->
+<!-- Production data release: through 2026-W03-MAIN -->
 <style>
 :root {
   --bg:#0b0d14;
@@ -573,9 +574,11 @@ function renderOverview(){
   const hit=decisions?wins/decisions*100:0;
   const perfect=cards.filter(c=>c.wins===5&&c.losses===0&&(c.pushes||0)===0).length;
   const avgWins=cards.length?cards.reduce((a,c)=>a+(c.wins||0),0)/cards.length:0;
-  const totalEntry=cards.reduce((a,c)=>a+(isFiniteNumber(c.entry_amount)?c.entry_amount:0),0);
-  const totalPaid=cards.reduce((a,c)=>a+(isFiniteNumber(c.paid_amount)?c.paid_amount:0),0);
-  const totalNet=cards.reduce((a,c)=>a+(isFiniteNumber(c.net_amount)?c.net_amount:0),0);
+  const settledCards=cards.filter(c=>isFiniteNumber(c.net_amount));
+  const pendingFinancialCount=cards.length-settledCards.length;
+  const totalEntry=settledCards.reduce((a,c)=>a+(isFiniteNumber(c.entry_amount)?c.entry_amount:0),0);
+  const totalPaid=settledCards.reduce((a,c)=>a+(isFiniteNumber(c.paid_amount)?c.paid_amount:0),0);
+  const totalNet=settledCards.reduce((a,c)=>a+c.net_amount,0);
   const leaders=leaderboard.filter(x=>x.rank===1).map(x=>x.name);
   const latest=getLatestCard();
   const latestPicks=latest?picks.filter(p=>p.card_id===latest.card_id).sort((a,b)=>participants.indexOf(a.picker)-participants.indexOf(b.picker)):[];
@@ -586,7 +589,7 @@ function renderOverview(){
       <div class="card kpi"><div class="label">Perfect Cards</div><div class="value">${perfect}</div><div class="hint">5-for-5</div></div>
       <div class="card kpi"><div class="label">Avg Wins / Card</div><div class="value">${avgWins.toFixed(2)}</div><div class="hint">out of 5</div></div>
       <div class="card kpi"><div class="label">Current Leader</div><div class="value">${leaders.length?leaders.join(" / "):"—"}</div><div class="hint">formal ranking rules</div></div>
-      <div class="card kpi"><div class="label">Net</div><div class="value">${money(totalNet)}</div><div class="hint">${money(totalEntry)} in · ${money(totalPaid)} paid</div></div>
+      <div class="card kpi"><div class="label">Net</div><div class="value">${money(totalNet)}</div><div class="hint">${money(totalEntry)} settled in · ${money(totalPaid)} paid${pendingFinancialCount?" · "+pendingFinancialCount+" payout pending":""}</div></div>
     </div>
     <div class="grid hero-grid">
       <div class="card">
