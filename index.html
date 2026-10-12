@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PrizePicks Group Tracker — 2026</title>
 <!-- Canonical season dataset: data/prizepicks_2026.json -->
-<!-- Production data release: through 2026-W03-MAIN -->
+<!-- Production data release: through 2026-W05-MAIN -->
 <style>
 :root {
   --bg:#0b0d14;
@@ -448,7 +448,9 @@ let cards=[];
 let promoPicks=[];
 
 const isFiniteNumber = v => typeof v==="number" && Number.isFinite(v);
-const isScoredPick = p => p && isFiniteNumber(p.adjusted_score);
+const isExcludedPick = p => p && (p.parameter_status==="Excluded" || ["Reboot","DNP","Void"].includes(p.result));
+const isAnalyticPick = p => p && !isExcludedPick(p);
+const isScoredPick = p => p && isAnalyticPick(p) && isFiniteNumber(p.adjusted_score);
 const fmtScore = v => isFiniteNumber(v) ? v.toFixed(2) : "Pending";
 const fmtNum = v => (v===null || v===undefined || v==="") ? "—" : String(v);
 const fmtDelta = v => !isFiniteNumber(v) ? "—" : `${v>0?"+":""}${v}`;
@@ -526,7 +528,7 @@ function statsForPicker(name){
   const avgAdj=perfScored.length?perfScored.reduce((a,p)=>a+p.adjusted_score,0)/perfScored.length:null;
   const best=perfScored.length?Math.max(...perfScored.map(p=>p.adjusted_score)):null;
   const byType=["Goblin","Standard","Demon"].map(type=>{
-    const arr=ps.filter(p=>p.pick_type===type);
+    const arr=ps.filter(p=>p.pick_type===type && isAnalyticPick(p));
     const w=arr.filter(p=>p.result==="Win").length;
     const l=arr.filter(p=>p.result==="Loss").length;
     const push=arr.filter(p=>p.result==="Push").length;
@@ -534,9 +536,10 @@ function statsForPicker(name){
     return {type,w,l,push,decisions:typeDecisions,total:arr.length,rate:typeDecisions?w/typeDecisions*100:null};
   });
   let streakType=null,streak=0;
-  if(ps.length && ["Win","Loss"].includes(ps[ps.length-1].result)){
-    streakType=ps[ps.length-1].result;
-    for(let i=ps.length-1;i>=0;i--){ if(ps[i].result===streakType) streak++; else break; }
+  for(let i=ps.length-1;i>=0;i--){
+    if(!["Win","Loss"].includes(ps[i].result)) continue;
+    if(streakType===null){streakType=ps[i].result;streak=1;continue;}
+    if(ps[i].result===streakType) streak++; else break;
   }
   return {name,ps,wins,losses,pushes,decisions,hit,avgBase,avgAdj,best,byType,streakType,streak};
 }
@@ -675,7 +678,7 @@ function pickTypePerformanceHTML(s){
 }
 
 function propCategoryHTML(s){
-  const byCat=Object.values(s.ps.reduce((acc,p)=>{
+  const byCat=Object.values(s.ps.filter(isAnalyticPick).reduce((acc,p)=>{
     acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,scoreTotal:0,scoreCount:0};
     const x=acc[p.prop_category]; x.n++; x.w+=p.result==="Win"?1:0; x.l+=p.result==="Loss"?1:0; x.push+=p.result==="Push"?1:0;
     if(isScoredPick(p)){x.scoreTotal+=p.adjusted_score;x.scoreCount++;}
@@ -700,7 +703,7 @@ function renderPickers(active=participants[0]){
 
 function renderAnalytics(){
   const byType=["Goblin","Standard","Demon"].map(type=>{
-    const arr=picks.filter(p=>p.pick_type===type);
+    const arr=picks.filter(p=>p.pick_type===type && isAnalyticPick(p));
     const w=arr.filter(p=>p.result==="Win").length;
     const l=arr.filter(p=>p.result==="Loss").length;
     const push=arr.filter(p=>p.result==="Push").length;
@@ -708,7 +711,7 @@ function renderAnalytics(){
     const scored=arr.filter(isScoredPick);
     return {type,total:arr.length,decisions,push,w,l,rate:decisions?w/decisions*100:null,avg:scored.length?scored.reduce((a,p)=>a+p.adjusted_score,0)/scored.length:null};
   });
-  const byCat=Object.values(picks.reduce((acc,p)=>{
+  const byCat=Object.values(picks.filter(isAnalyticPick).reduce((acc,p)=>{
     acc[p.prop_category] ||= {cat:p.prop_category,n:0,w:0,l:0,push:0,scoreTotal:0,scoreCount:0};
     const x=acc[p.prop_category]; x.n++; x.w+=p.result==="Win"?1:0; x.l+=p.result==="Loss"?1:0; x.push+=p.result==="Push"?1:0;
     if(isScoredPick(p)){x.scoreTotal+=p.adjusted_score;x.scoreCount++;}
